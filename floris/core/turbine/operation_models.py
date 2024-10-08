@@ -385,18 +385,21 @@ class MixedOperationTurbine(BaseOperationModel):
     def power(
         yaw_angles: NDArrayFloat,
         power_setpoints: NDArrayFloat,
+        awc_amplitudes: NDArrayFloat,
         **kwargs
     ):
         # Yaw angles mask all yaw_angles not equal to zero
         yaw_angles_mask = yaw_angles != 0.0
         power_setpoints_mask = power_setpoints < POWER_SETPOINT_DEFAULT
-        neither_mask = np.logical_not(yaw_angles_mask) & np.logical_not(power_setpoints_mask)
+        awc_setpoints_mask = awc_amplitudes != 0
+        none_mask = np.logical_not(yaw_angles_mask) & np.logical_not(power_setpoints_mask) & np.logical_not(awc_setpoints_mask)
 
-        if (power_setpoints_mask & yaw_angles_mask).any():
+        if (power_setpoints_mask.astype(int) + yaw_angles_mask.astype(int) + awc_setpoints_mask.astype(int) > 1).any():
             raise ValueError((
-                "Power setpoints and yaw angles are incompatible."
-                "If yaw_angles entry is nonzero, power_setpoints must be greater than"
-                " or equal to {0}.".format(POWER_SETPOINT_DEFAULT)
+                "Power setpoints, yaw angles and AWC setpoints are incompatible."
+                "If yaw_angles or awc_amplitudes entry is nonzero, power_setpoints must"
+                " be greater than or equal to {0}. You cannot set nonzero yaw_angles"
+                " and awc_amplitudes for the same turbine".format(POWER_SETPOINT_DEFAULT)
             ))
 
         powers = np.zeros_like(power_setpoints)
@@ -408,26 +411,37 @@ class MixedOperationTurbine(BaseOperationModel):
             power_setpoints=power_setpoints,
             **kwargs
         )[power_setpoints_mask]
-        powers[neither_mask] += SimpleTurbine.power(
+        powers[awc_setpoints_mask] += AWCTurbine.power(
+            awc_amplitudes=awc_amplitudes,
             **kwargs
-        )[neither_mask]
+        )[awc_setpoints_mask]
+        powers[none_mask] += SimpleTurbine.power(
+            **kwargs
+        )[none_mask]
+
+        ## WHAT IS GOING ON HERE??
+
+
 
         return powers
 
     def thrust_coefficient(
         yaw_angles: NDArrayFloat,
         power_setpoints: NDArrayFloat,
+        awc_amplitudes: NDArrayFloat,
         **kwargs
     ):
         yaw_angles_mask = yaw_angles != 0.0
         power_setpoints_mask = power_setpoints < POWER_SETPOINT_DEFAULT
-        neither_mask = np.logical_not(yaw_angles_mask) & np.logical_not(power_setpoints_mask)
+        awc_setpoints_mask = awc_amplitudes != 0.0
+        none_mask = np.logical_not(yaw_angles_mask) & np.logical_not(power_setpoints_mask) & np.logical_not(awc_setpoints_mask)
 
-        if (power_setpoints_mask & yaw_angles_mask).any():
+        if (power_setpoints_mask.astype(int) + yaw_angles_mask.astype(int) + awc_setpoints_mask.astype(int) > 1).any():
             raise ValueError((
-                "Power setpoints and yaw angles are incompatible."
-                "If yaw_angles entry is nonzero, power_setpoints must be greater than"
-                " or equal to {0}.".format(POWER_SETPOINT_DEFAULT)
+                "Power setpoints, yaw angles and AWC setpoints are incompatible."
+                "If yaw_angles or awc_amplitudes entry is nonzero, power_setpoints must"
+                " be greater than or equal to {0}. You cannot set nonzero yaw_angles"
+                " and awc_amplitudes for the same turbine".format(POWER_SETPOINT_DEFAULT)
             ))
 
         thrust_coefficients = np.zeros_like(power_setpoints)
@@ -439,19 +453,26 @@ class MixedOperationTurbine(BaseOperationModel):
             power_setpoints=power_setpoints,
             **kwargs
         )[power_setpoints_mask]
-        thrust_coefficients[neither_mask] += SimpleTurbine.thrust_coefficient(
+        thrust_coefficients[awc_setpoints_mask] += AWCTurbine.thrust_coefficient(
+            awc_amplitudes=awc_amplitudes,
             **kwargs
-        )[neither_mask]
+        )[awc_setpoints_mask]
+
+        thrust_coefficients[none_mask] += SimpleTurbine.thrust_coefficient(
+            **kwargs
+        )[none_mask]
 
         return thrust_coefficients
 
     def axial_induction(
         yaw_angles: NDArrayFloat,
         power_setpoints: NDArrayFloat,
+        awc_amplitudes: NDArrayFloat,
         **kwargs
     ):
         yaw_angles_mask = yaw_angles != 0.0
         power_setpoints_mask = power_setpoints < POWER_SETPOINT_DEFAULT
+        awc_setpoints_mask = awc_amplitudes != 0.0
         neither_mask = np.logical_not(yaw_angles_mask) & np.logical_not(power_setpoints_mask)
 
         if (power_setpoints_mask & yaw_angles_mask).any():
@@ -470,6 +491,10 @@ class MixedOperationTurbine(BaseOperationModel):
             power_setpoints=power_setpoints,
             **kwargs
         )[power_setpoints_mask]
+        axial_inductions[awc_setpoints_mask] += AWCTurbine.axial_induction(
+            awc_amplitudes=awc_amplitudes,
+            **kwargs
+        )[awc_setpoints_mask]
         axial_inductions[neither_mask] += SimpleTurbine.axial_induction(
             **kwargs
         )[neither_mask]

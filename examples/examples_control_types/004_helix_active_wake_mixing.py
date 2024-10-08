@@ -14,23 +14,26 @@ from floris import FlorisModel
 
 
 # Grab model of FLORIS and update to awc-enabled turbines
-fmodel = FlorisModel("../inputs/emgauss_helix.yaml")
+fmodel = FlorisModel("examples/inputs/emgauss_helix.yaml")
 fmodel.set_operation_model("awc")
 
 # Set the wind directions and speeds to be constant over N different helix amplitudes
 N = 1
-awc_modes = np.array(["helix", "baseline", "baseline", "baseline"]).reshape(4, N).T
-awc_amplitudes = np.array([2.5, 0, 0, 0]).reshape(4, N).T
+Nturb = 9
+awc_modes = np.array(["helix", "baseline", "baseline", "baseline", "baseline", "baseline", "baseline", "baseline", "baseline"]).reshape(Nturb, N).T
+awc_amplitudes = np.array([2.5, 0, 0, 0, 0, 0, 0, 0, 0]).reshape(Nturb, N).T
+yaw_angles = np.array([0, 0, 0, 0, 0, 0, 20, 0, 0]).reshape(Nturb, N).T
 
 # Create 4 WT WF layout with lateral offset of 3D and streamwise offset of 4D
 D = 240
 fmodel.set(
-    layout_x=[0.0, 4*D, 0.0, 4*D],
-    layout_y=[0.0, 0.0, -3*D, -3*D],
+    layout_x=[0.0, 4*D, 8*D, 0.0, 4*D, 8*D, 0.0, 4*D, 8*D],
+    layout_y=[0.0, 0.0, 0.0, -3*D, -3*D, -3*D, -6*D, -6*D, -6*D,],
     wind_directions=270 * np.ones(N),
     wind_speeds=8.0 * np.ones(N),
     turbulence_intensities=0.06*np.ones(N),
     awc_modes=awc_modes,
+    yaw_angles=yaw_angles,
     awc_amplitudes=awc_amplitudes
 )
 fmodel.run()
@@ -94,9 +97,10 @@ flowviz.visualize_cut_plane(
 # Calculate the effect of changing awc_amplitudes
 N = 50
 awc_amplitudes = np.array([
-    np.linspace(0, 5, N),
+    np.linspace(0, 5, N), np.zeros(N), np.zeros(N), 
+    np.zeros(N), np.zeros(N), np.zeros(N), 
     np.zeros(N), np.zeros(N), np.zeros(N)
-    ]).reshape(4, N).T
+    ]).reshape(Nturb, N).T
 
 # Reset FlorisModel for different helix amplitudes
 fmodel.set(
@@ -114,20 +118,27 @@ fig_power, ax_power = plt.subplots()
 ax_power.fill_between(
     awc_amplitudes[:, 0],
     0,
-    turbine_powers[:, 0]/1000,
+    turbine_powers[:, 0]/1e3,
     color='C0',
     label='Turbine 1'
     )
 ax_power.fill_between(
     awc_amplitudes[:, 0],
     turbine_powers[:, 0]/1000,
-    turbine_powers[:, :2].sum(axis=1)/1000,
+    turbine_powers[:, :2].sum(axis=1)/1e3,
     color='C1',
     label='Turbine 2'
     )
+ax_power.fill_between(
+    awc_amplitudes[:, 0],
+    turbine_powers[:, :2].sum(axis=1)/1e3,
+    turbine_powers[:,:3].sum(axis=1)/1e3,
+    color='C3',
+    label='Turbine 3'
+    )
 ax_power.plot(
     awc_amplitudes[:, 0],
-    turbine_powers[:,:2].sum(axis=1)/1000,
+    turbine_powers[:,:3].sum(axis=1)/1e3,
     color='k',
     label='Farm'
     )
@@ -135,5 +146,17 @@ ax_power.plot(
 ax_power.set_xlabel("Upstream turbine helix amplitude [deg]")
 ax_power.set_ylabel("Power [kW]")
 ax_power.legend()
+
+
+fig_poweri, ax_poweri = plt.subplots()
+
+ax_poweri.plot(awc_amplitudes[:,0], turbine_powers[:,:3]/1e3)
+ax_poweri.plot(awc_amplitudes[:,0], turbine_powers[:,3:6]/1e3, ':')
+ax_poweri.plot(awc_amplitudes[:,0], turbine_powers[:,6:]/1e3, '--')
+ax_poweri.set_xlabel("Upstream turbine helix amplitude [deg]")
+ax_poweri.set_ylabel("Power [kW]")
+ax_poweri.legend(['Turbine 1','Turbine 2','Turbine 3'])
+ax_poweri.grid()
+
 
 flowviz.show()
